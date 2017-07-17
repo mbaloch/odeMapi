@@ -1,3 +1,4 @@
+import model.Data;
 import model.ProcessExec;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
@@ -14,7 +15,7 @@ public class ObjectRDFMapper {
         return rdfUtility;
     }
 
-    RDFUtility rdfUtility = new RDFUtility();
+    private RDFUtility rdfUtility = new RDFUtility();
     public Resource createWorkflowExecResource(ProcessExec processExec) {
         Resource workflowExecResource = rdfUtility.createProcessExec(
                 processExec.getProcessInstanceId(), processExec.getProcessId(), processExec.getId()
@@ -32,22 +33,13 @@ public class ObjectRDFMapper {
         Property isPartOf = rdfUtility.isPartOf(processExecResource, workflowResource);
         return processExecResource;
 
-        /*
-        //if (subject != null) {
-        if (processExec.getCompleted() == null)
-            processExec.setCompleted(false);
-        RDFUtility rdfUtility = new RDFUtility();
-        Resource processExecResource = rdfUtility.createProcessExec(
-                shortUUID(), processExec.getTitle(), processExec.getId()
-                , processExec.getStartTime(), processExec.getEndTime(),
-                processExec.getCompleted().toString());
-        Property wasAssociatedWith = rdfUtility.wasAssociatedWith(processExecResource, wasAssociatedWithResource);
-        Property isPartOf = rdfUtility.isPartOf(processExecResource, workflowResource);
-        return processExecResource;
+    }
+    public void processProducedData(String workflowId, String processId, Data data) {
 
-        //}
-*/
-      //  return null;
     }
 
+
+    public void processConsumedData(String workflowId, String processId, Data data) {
+
+    }
 }

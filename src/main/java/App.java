@@ -4,10 +4,17 @@ import org.apache.axiom.om.*;
 import org.apache.axis2.AxisFault;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
+
 import org.apache.ode.bpel.pmapi.*;
 import org.apache.ode.utils.Namespaces;
+import org.apache.ode.utils.wsdl.Messages;
 import org.apache.xmlbeans.XmlException;
+import org.apache.xmlbeans.XmlObject;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+
+import javax.wsdl.Message;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -20,7 +27,7 @@ public class App {
     private ServiceClientUtil client = new ServiceClientUtil();
 
     void getCommunicationbyInstanceId(String iid) throws AxisFault {
-        String argumentsTypes[]= {"getCommunication"};
+        String argumentsTypes[] = {"getCommunication"};
 
         OMFactory _factory = OMAbstractFactory.getOMFactory();
         OMNamespace pmns = _factory.createOMNamespace(Namespaces.ODE_PMAPI_TYPES_NS, "ns");
@@ -29,19 +36,19 @@ public class App {
         Object argumentValues[] = {instanceIdElement};
 
         OMElement communicationMessageBuild = getBuildMessage("getCommunication", argumentsTypes, argumentValues);
-        System.out.println(communicationMessageBuild);
-        OMElement communicationResult = client.send(communicationMessageBuild, "http://localhost:8080/ode/processes/InstanceManagement");
+        //    System.out.println(communicationMessageBuild);
+        OMElement communicationResult = client.send(communicationMessageBuild, "http://balochsoft.com:8888/ode/processes/InstanceManagement");
         OMElement communicationResultFirstElement = communicationResult.getFirstElement();
         OMElement nextChildElement = communicationResultFirstElement.getFirstElement();
         communicationResultFirstElement.setNamespace(pmns);
-        System.out.println(nextChildElement);
+        //  System.out.println(nextChildElement);
 
         try {
-            GetCommunicationResponse getCommunicationResponse=
+            GetCommunicationResponse getCommunicationResponse =
                     GetCommunicationResponse.Factory.parse(communicationResult.getXMLStreamReader());
 //            GetCommunicationResponseDocument getCommunicationResponseDocument=
 //                    GetCommunicationResponseDocument.Factory.parse(communicationResult.getXMLStreamReader());
-            GetCommunicationResponseDocument getCommunicationResponseDocument2=
+            GetCommunicationResponseDocument getCommunicationResponseDocument2 =
                     GetCommunicationResponseDocument.Factory.parse(communicationResultFirstElement.getXMLStreamReader());
 
 
@@ -49,12 +56,58 @@ public class App {
             int length = restoreInstanceArray.length;
             CommunicationType communicationType = restoreInstanceArray[0];
             CommunicationType.Exchange[] exchangeArray = communicationType.getExchangeArray();
-
-            System.out.println("abc");
-//            GetCommunicationResponseDocument getCommunicationResponseDocument=
-//                    GetCommunicationResponseDocument.Factory.parse(communicationResult.getXMLStreamReader());
+            for (int i = 0; i < exchangeArray.length; i++) {
+                CommunicationType.Exchange exchange = exchangeArray[i];
+                String operation = exchange.getOperation();
+                System.out.println("Operation:" + operation);
+                XmlObject exchangeIn = exchange.getIn();
+                XmlObject exchangeOut = exchange.getOut();
+                parseExchange(exchangeIn.getDomNode());
+                parseExchange(exchangeOut.getDomNode());
+            }
         } catch (XmlException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void parseExchange(Node exchange) {
+
+        for (int exchangeNodeFor=0; exchangeNodeFor< exchange.getChildNodes().getLength();exchangeNodeFor++){
+            if(exchange.getChildNodes().item(exchangeNodeFor).getNodeName().toString().equalsIgnoreCase("message")){
+                completeParseMessage(exchange.getChildNodes().item(exchangeNodeFor));
+            }
+
+        }
+
+
+//        for (int jj = 0; jj < childNode.getChildNodes().getLength(); jj++) {
+//            Node childrenText = childNode.getChildNodes().item(jj);
+//            if (childrenText.getNodeType() == Node.TEXT_NODE) {
+//                System.out.println("valuesss:" + childrenText.getNodeValue());
+//
+//            }
+//        }
+
+    }
+
+    private void completeParseMessage(Node messageNode) {
+
+        if(messageNode.hasAttributes()){
+            System.out.println("forNodeName: "+messageNode.getNodeName());
+
+            for (int attr=0; attr<messageNode.getAttributes().getLength();attr++) {
+                System.out.println("attribute: "+messageNode.getAttributes().item(attr).getNodeValue());
+            }
+            System.out.println("-------------------");
+        }
+
+        if(messageNode.hasChildNodes()){
+            for (int childNodes=0; childNodes<messageNode.getChildNodes().getLength();childNodes++){
+                completeParseMessage(messageNode.getChildNodes().item(childNodes));
+            }
+        }else{
+            System.out.println("Node: "+messageNode.getParentNode().getNodeName());
+            System.out.println("Value"+messageNode.getNodeValue());
         }
     }
 
@@ -63,7 +116,7 @@ public class App {
         String argumentsTypes[] = {"instanceFilter", "eventFilter", "maxCount"};
         String argumentValues[] = {"iid=" + iid, "type=Act*", "0"};
         OMElement activityMessageBuild = getBuildMessage("listEvents", argumentsTypes, argumentValues);
-        System.out.println("Message:"+activityMessageBuild);
+        System.out.println("Message:" + activityMessageBuild);
         OMElement activityResult = client.send(activityMessageBuild, "http://balochsoft.com:8888/ode/processes/InstanceManagement");
         OMElement activityEventList = activityResult.getFirstElement();
 
@@ -111,36 +164,38 @@ public class App {
 
         return eventInfoList;
     }
-    List<ProcessExec> processExecList=new ArrayList<>();
-    public Model generateRetrospective(List<TEventInfo> eventsByInstanceId){
 
-    eventsByInstanceId.forEach(tEventInfo -> {
-        switch (tEventInfo.getName()) {
-            case "NewProcessInstanceEvent":
-                processExecList.add(newProcessInstanceEventHandler(tEventInfo));
-                break;
-            case "ProcessInstanceStartedEvent":
-                processInstanceStartedEventHandler(tEventInfo);
-                break;
-            case "ActivityExecStartEvent":
-                ProcessExec processExec = activityExecStartEventHandler(tEventInfo);
-                if (processExec !=null)
-                    processExecList.add(processExec);
-                break;
-            case "VariableReadEvent":
-                variableReadEventHandler(tEventInfo);
-                break;
-            case "VariableModificationEvent":
-                variableModificationEventHandler(tEventInfo);
-                break;
-            case "ProcessMessageExchangeEvent":
-                processMessageExchangeEventHandler(tEventInfo);
-                break;
+    List<ProcessExec> processExecList = new ArrayList<>();
 
-            default:
+    public void generateRetrospective(List<TEventInfo> eventsByInstanceId) {
 
-        }
-    });
+        eventsByInstanceId.forEach(tEventInfo -> {
+            switch (tEventInfo.getName()) {
+                case "NewProcessInstanceEvent":
+                    processExecList.add(newProcessInstanceEventHandler(tEventInfo));
+                    break;
+                case "ProcessInstanceStartedEvent":
+                    processInstanceStartedEventHandler(tEventInfo);
+                    break;
+                case "ActivityExecStartEvent":
+                    ProcessExec processExec = activityExecStartEventHandler(tEventInfo);
+                    if (processExec != null)
+                        processExecList.add(processExec);
+                    break;
+                case "VariableReadEvent":
+                    variableReadEventHandler(tEventInfo);
+                    break;
+                case "VariableModificationEvent":
+                    variableModificationEventHandler(tEventInfo);
+                    break;
+                case "ProcessMessageExchangeEvent":
+                    processMessageExchangeEventHandler(tEventInfo);
+                    break;
+
+                default:
+
+            }
+        });
         eventsByInstanceId.forEach(tEventInfo -> {
             switch (tEventInfo.getName()) {
                 case "ProcessCompletionEvent":
@@ -157,50 +212,44 @@ public class App {
         });
         System.out.println("done");
         ProcessExec processExec1 = processExecList.stream().filter(processExec -> processExec instanceof WorkflowExec).findFirst().get();
-        ObjectRDFMapper objectRDFMapper=new ObjectRDFMapper();
+        ObjectRDFMapper objectRDFMapper = new ObjectRDFMapper();
         Resource workflowExecResource = objectRDFMapper.createWorkflowExecResource(processExec1);
         processExecList.forEach(processExec -> {
-            if(! (processExec instanceof WorkflowExec)){
-                objectRDFMapper.createProcessExecResource(processExec,workflowExecResource);
+            if (!(processExec instanceof WorkflowExec)) {
+                objectRDFMapper.createProcessExecResource(processExec, workflowExecResource);
             }
         });
-        objectRDFMapper.rdfUtility.getModel().write(System.out);
+        objectRDFMapper.getRdfUtility().getModel().write(System.out);
+
+    }
+
+    public Model generateRDFModel() {
+
         return null;
     }
 
-    public Model generateRDFModel(){
-
-        return null;
-    }
     private WorkflowExec newProcessInstanceEventHandler(TEventInfo newProcessInstanceEvent) {
 
-        WorkflowExec workflowExec=new WorkflowExec();
+        WorkflowExec workflowExec = new WorkflowExec();
         workflowExec.setId(Long.toString(newProcessInstanceEvent.getActivityId()));
         workflowExec.setProcessName(newProcessInstanceEvent.getActivityName());
         workflowExec.setTitle(newProcessInstanceEvent.getProcessType().toString());
         workflowExec.setProcessId(newProcessInstanceEvent.getProcessId().toString());
         workflowExec.setStartTime(newProcessInstanceEvent.getTimestamp().toString());
-        workflowExec.setProcessInstanceId(Long.toString( newProcessInstanceEvent.getInstanceId()));
+        workflowExec.setProcessInstanceId(Long.toString(newProcessInstanceEvent.getInstanceId()));
         return workflowExec;
     }
 
     private void processInstanceStartedEventHandler(TEventInfo processInstanceStartEvent) {
-//        logger.info(":::::::::::::::::::::::::Process Instance Started event start (Custome Handling)::::::::::::::::::::::::::::::::::::::::::");
-//        logger.info("Time:" + processInstanceStartEvent.getTimestamp().toString());
-//        logger.debug("ProcessName:(Custome Handling)" + processInstanceStartEvent.getProcessName());
-//        logger.debug("Process Process Instance ID:(Custome Handling)" + processInstanceStartEvent.getProcessInstanceId());
-//        logger.debug("Process ID:(Custome Handling)" + processInstanceStartEvent.getProcessId());
-//        logger.debug("new process instance started event information:" + processInstanceStartEvent.toString());
-//        logger.info(":::::::::::::::::::::::::Process Instance Started event end (Custome Handling)::::::::::::::::::::::::::::::::::::::::::");
     }
 
     private void processCompletionEventHandler(TEventInfo completionEvent) {
-       processExecList.forEach(processExec -> {
-           if (processExec instanceof WorkflowExec){
-               processExec.setEndTime(completionEvent.getTimestamp().toString());
-               processExec.setCompleted(true);
-           }
-       });
+        processExecList.forEach(processExec -> {
+            if (processExec instanceof WorkflowExec) {
+                processExec.setEndTime(completionEvent.getTimestamp().toString());
+                processExec.setCompleted(true);
+            }
+        });
 
     }
 
@@ -216,7 +265,7 @@ public class App {
                 activityExec.setTitle(activityExecStartEvent.getActivityName());
                 activityExec.setProcessId(activityExecStartEvent.getProcessId().toString());
                 activityExec.setStartTime(activityExecStartEvent.getTimestamp().toString());
-                activityExec.setProcessInstanceId(Long.toString( activityExecStartEvent.getInstanceId()));
+                activityExec.setProcessInstanceId(Long.toString(activityExecStartEvent.getInstanceId()));
                 System.out.println("hi");
                 return activityExec;
             default:
@@ -232,7 +281,7 @@ public class App {
             case "OInvoke":
             case "OPickReceive":
                 processExecList.forEach(processExec -> {
-                    if (processExec.getId().equals(Long.toString(activityExecEndEvent.getActivityId()))){
+                    if (processExec.getId().equals(Long.toString(activityExecEndEvent.getActivityId()))) {
                         processExec.setEndTime(activityExecEndEvent.getTimestamp().toString());
                         processExec.setCompleted(true);
                     }
@@ -251,18 +300,21 @@ public class App {
     private void variableModificationEventHandler(TEventInfo variableModificationEvent) {
 
     }
+
     private void processMessageExchangeEventHandler(TEventInfo processMessageExchangeEvent) {
 
     }
-    RDFUtility rdfUtility=new RDFUtility();
+
+    RDFUtility rdfUtility = new RDFUtility();
+
     public static void main(String[] args) {
         App app = new App();
         try {
-            List<TEventInfo> eventsByInstanceId = app.getEventsByInstanceId("400");
-           // eventsByInstanceId.forEach(System.out::println);
-            app.generateRetrospective(eventsByInstanceId);
+            //   List<TEventInfo> eventsByInstanceId = app.getEventsByInstanceId("400");
+            // eventsByInstanceId.forEach(System.out::println);
+            //  app.generateRetrospective(eventsByInstanceId);
             System.out.println("testing");
-         //   app.getCommunicationbyInstanceId("400");
+            app.getCommunicationbyInstanceId("400");
         } catch (AxisFault axisFault) {
             axisFault.printStackTrace();
         }
